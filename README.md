@@ -1,105 +1,85 @@
-# Instructions
+# Pharma Analytics Pipeline
 
-## Business Model
-We work to offer the lowest possible prices on generic and branded medications, regardless of whether you have insurance or not. Patients get prescriptions with drug (`ndc`) and its (`quantity`) to be filled by a Pharmacy (`npi`). When the patient arrives at the pharmacy with the prescription, the pharmacist informs the (`price`) and submits a new claim. Sometimes, the consumer does not return to the pharmacy to get the drugs, this will generate a claim revert which should be registered by the pharmacist in order to revert (i.e. invalidate) that claim.
-### Input
-#### Arguments
-Your application should accept 3 lists of directories names with pharmacy dataset, claims events and reverts events.
+This project provides a data processing pipeline to analyze pharmacy claims data. It ingests pharmacy, claims, and reverts event data, calculates key performance metrics, and generates business recommendations.
 
-- we don't change pharmacy very often;
-- claims and reverts are a stream of events.
-#### Pharmacy schema
-- id (string):
-- chain (string):
-#### Claims event schema
-- id (string): a UUID that identifies the claim.
-- npi (string): an identifier of the pharmacy that filled the claim;
-- ndc (string): an identifier of the drug;
-- price (float): the total price charged for the prescription (i.e. unit_price * quantity);
-- quantity (integer): the amount of drugs that was filled by the pharmacy;
-- timestamp (datetime): when the claim was filled.
-#### Revert event schema
-- id (string): a UUID that identifies the revert.
-- claim_id (string): an identifier of the claim been reverted (i.e. invalidated);
-- timestamp (datetime): when the claim was reverted.
-  
-Example data can be found on [claims.json](https://gist.github.com/matheus-hellohippo/a0e28bcbeade9e5044a08808a847a11c/raw/02-claims.json).
+The pipeline is built using Python and the Pandas library, chosen for its efficiency and ease of setup on datasets of this scale.
 
-## Goals
-## 1. Read data stored in JSON files
-Read pharmacy, claims and reverts from the provided files in your entry point. Some events may not comply with the provided schema. You can use the library of your choice to perform the JSON parsing. We are only interested in events from Pharmacy dataset.
+## Project Goals
 
-## 2. Calculate metrics for some dimensions
-We want to check how some metrics perform depending on a few dimensions. For example, we would like to check the average unit price offered by pharmacies. This will help us to spot new opportunities or pharmacies that are performing poorly.
+The application performs the following tasks:
+1.  **Reads Data**: Ingests pharmacy, claims, and reverts data from directories of JSON and CSV files.
+2.  **Calculates Core Metrics**: Computes claim counts, revert counts, average unit price, and total price, grouped by pharmacy (`npi`) and drug (`ndc`).
+3.  **Recommends Top Chains**: Identifies the top 2 cheapest pharmacy chains for each drug based on average unit price.
+4.  **Finds Common Quantities**: Determines the top 5 most frequently prescribed quantities for each drug.
 
-Metrics:
-- Count of claims
-- Count of reverts
-- Average unit price
-- Total price
+## Setup and Execution Guide
 
-Dimensions:
-- npi
-- ndc
+Follow these steps to set up the environment and run the analytics pipeline.
 
-Please, write the output to a JSON file using the following format:
-```json
-[
-    {
-        "npi": "0000000000",
-        "ndc": "00002323401",
-        "fills": 82,
-        "reverted": 4,
-        "avg_price": 377.56,
-        "total_price": 2509345.2
-    },
-    ...
-]
+### 1. Project Structure
+
+Ensure your project files are organized as follows:
+```bash
+hippo-challenge/
+├── data/
+│ ├── claims/
+│ ├── pharmacy/
+│ └── reverts/
+├── output/
+├── src/
+│ └── main.py
+├── requirements.txt
+└── README.md
 ```
-## 3. Make a recommendation for the top 2 Chain to be displayed for each Drug.
-The business team wants to understand Drug unit prices per Chain. To measure performance, we will check the chain that, on average, charges less per drug unit.
-Output fields:
-Please, write the output to a JSON file using the following format:
-```json
-[
-    {
-        "ndc": "00015066812",
-        "chain": [
-            {
-                "name": "health",
-                "avg_price": 377.56
-            },
-            {
-                "name": "saint",
-                "avg_price": 413.40
-            }
-        ]
-    },
-    ...
-]
-```
-## 4. Understand Most common quantity prescribed for a given Drug
-The business team wants to know what is the Drug most common quantity prescribed to negotiate prices discounts.
-Please, write the output to a JSON file using the following format:
-```json
-[
-    {
-        "ndc": "00002323401",
-        "most_prescribed_quantity": [
-            8.5, 15.0, 45.0, 180.0, 2.0
-        ]
-    },
-    ...
-]
+### 2. Create and Activate a Virtual Environment
+
+Using a virtual environment is highly recommended to manage dependencies.
+
+```bash
+# Create the virtual environment
+python3 -m venv venv
+
+# Activate the environment
+# On macOS/Linux:
+source venv/bin/activate
+# On Windows:
+.\venv\Scripts\activate
 ```
 
-## Technical requirements
-- Write your application using the Scala or Python programming languages. You can choose the build tool of your choice;
-- You can use a library of your choice to parse JSON and program arguments;
-- Please don't use notebook software (Jupyter, Zeppelin, etc) for this;
-- Please, don't use any data processing framework (Spark, Flink, Akka...) for goals 1 and 2. You can use them for the 3 and 4;
-- Your application will be running on a single instance with 10 cores;
-Please, provide your code as a git repository with a README on how to execute it with the sample files.
+### 3. Install Dependencies
 
-## Questions?
-If you have clarifying questions, don't hesitate to ask by email.
+Install the required Python library from the requirements.txt file.
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Run the Pipeline
+
+Execute the main script from the root directory of the project. The script accepts command-line arguments to specify the locations of the data and the output directory.
+```bash
+python src/main.py --pharmacy_dirs ./data/pharmacy --claims_dirs ./data/claims --reverts_dirs ./data/reverts --output_dir ./output
+```
+
+
+### 5. Check the output
+
+The ./output/ directory will contain three JSON files with the results of the analysis:
+ - goal_2_metrics.json
+ - goal_3_recommendations.json
+ - goal_4_common_quantities.json
+
+
+
+# Notes
+
+#### *Architectural Note: Scaling with PySpark
+
+This implementation uses the Pandas library to fulfill all requirements. This choice was made to ensure the application is lightweight and runs without complex external dependencies like Java. For the provided dataset size, Pandas is highly efficient and more than sufficient.
+For a production environment handling significantly larger data volumes (millions or billions of records), a distributed processing framework like Apache Spark would be the architecturally superior choice. The logic for Goals 3 and 4 can be expressed in PySpark to leverage multi-core or multi-node cluster processing.
+Below are the PySpark implementations of the functions for Goals 3 and 4, demonstrating how this pipeline is designed to scale. To run this code, pyspark would be added to requirements.txt and a compatible Java JDK (17+) would need to be installed in the execution environment.
+Scalable PySpark Im
+
+#### *Data Schema Notes
+
+The initial instructions specified a `pharmacy` schema with an `id` column. However, the provided sample data uses an `npi` column as the unique identifier for pharmacies.
+This pipeline has been designed to conform to the **actual data schema** provided. Therefore, it uses the `npi` column as the primary key for pharmacy data without renaming or altering the source columns.
